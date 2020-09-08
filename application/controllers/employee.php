@@ -10,122 +10,82 @@ class Employee extends CI_Controller {
 	}
 
 	public function index()
-	{
-		$this->load->helper('url');
-		$this->load->view('employee_view');
-
+    {
+        $this->load->view('employee_view');
+    }
+   
+    /**
+     * Get All Data from this method.
+     *
+     * @return Response
+    */
+    public function getEmp()
+    {
+          $data = [];
+          $parent_key = '0';
+          $row = $this->db->query('SELECT id, name from employee');
+            
+          if($row->num_rows() > 0)
+          {
+              $data = $this->membersTree($parent_key);
+          }else{
+              $data=["id"=>"0","name"=>"No Members presnt in list","text"=>"No Members is presnt in list","nodes"=>[]];
+          }
+   
+          echo json_encode(array_values($data));
 	}
-
-	public function ajax_list()
-	{
-		$list = $this->person->get_datatables();
-		$data = array();
-		$no = $_POST['start'];
-		foreach ($list as $person) 
-		{
-			$no++;
-			$row = array();
-			$row[] = $person->name;
-			$row[] = $person->email;
-			$row[] = $person->address;
-			$row[] = $person->contact;
-			$row[] = $person->dob;
-			$row[] = '<img src="'."".base_url($person->image)."".'"   width="100px" height="100px">';
-
-
-			//add html for action
-			$row[] = '<a class="btn btn-sm btn-primary" href="javascript:void()" title="Edit" onclick="edit_person('."'".$person->id."'".')"><i class="glyphicon glyphicon-pencil"></i> Edit</a>
-				  <a class="btn btn-sm btn-danger" href="javascript:void()" title="Hapus" onclick="delete_person('."'".$person->id."'".')"><i class="glyphicon glyphicon-trash"></i> Delete</a>';
-		
-			$data[] = $row;
-		}
-
-		$output = array(
-						"draw" => $_POST['draw'],
-						"recordsTotal" => $this->person->count_all(),
-						"recordsFiltered" => $this->person->count_filtered(),
-						"data" => $data,
-				);
-		//output to json format
-		echo json_encode($output);
-	}
-
-	public function ajax_edit($id)
-	{
-		$data = $this->person->get_by_id($id);
-		echo json_encode($data);
-	}
+	
+	public function getManager()
+    {
+          $empdata = [];
+          $parent_key = '0';
+          $data = $this->db->query('SELECT id, name from employee WHERE parent="'.$parent_key.'"')->result_array();
+                 foreach ($data as $key => $value) {
+					$empdata[$key]= array('id'=>$value['id'],'name'=>$value['name']);
+				 }
+          echo json_encode($empdata);
+    }
+   
+   
+    public function membersTree($parent_key)
+    {
+        $row1 = [];
+        $row = $this->db->query('SELECT id, name from employee WHERE parent="'.$parent_key.'"')->result_array();
+    
+        foreach($row as $key => $value)
+        {
+           $id = $value['id'];
+           $row1[$key]['id'] = $value['id'];
+           $row1[$key]['name'] = $value['name'];
+           $row1[$key]['text'] = $value['name'];
+           $row1[$key]['nodes'] = array_values($this->membersTree($value['id']));
+        }
+  
+        return $row1;
+    }
+      
 
 	
 	public function addemployee()
 	{
-
-				$config['upload_path'] = './uploads/';
-				$config['allowed_types'] = 'gif|jpg|png';
-				$this->load->library('upload', $config);
-
-				if ( ! $this->upload->do_upload('userfile'))
-                {
-						$error = array('upload_error' => $this->upload->display_errors());
-						//print_r($error);die;
-
-                        $this->load->view('employee_view', $error);
-                }
-                else
-                {
-					$check=$this->check_duplicate_email($this->input->post('email'));
-					$uploaddata = $this->upload->data();
-					//print_r($uploaddata);
-					 $imagename='uploads/'.$uploaddata['raw_name'].''.$uploaddata['file_ext'];
-				
-					if ($check !=1) {
-						$data = array(
-							'name' => $this->input->post('name'),
-							'email' => $this->input->post('email'),
-							'contact' => $this->input->post('contact'),
-							'address' => $this->input->post('address'),
-							'dob' => $this->input->post('dob'),
-							'image' => $imagename
-
-						);
+		if ($this->input->post('name')!="")
+		 {			
+				$data = array(					
+					'name' => $this->input->post('name'),
+					'parent' => $this->input->post('parent'),
+				);
 			
-					//print_r($data);die;
-					$insert = $this->person->save($data);
-					//echo json_encode(array("status" => TRUE));
-                        $this->load->view('employee_view');
-					}
-					else{
-						$error = array('email_error' => 'email already present');
-						//print_r($error);die;
+				//print_r($data);die;
+				$insert = $this->person->save($data);
 
-                        $this->load->view('employee_view', $error);
-					}					
-						
-                }
+				if ($insert) {
+					return redirect($this->index());
+				}
+				
+		}
 		
-	}
-
-	public function check_duplicate_email($post_email) {
-		return $this->person->checkDuplicateEmail($post_email);
 		}
 
-	public function ajax_update()
-	{
-		$data = array(
-				'name' => $this->input->post('name'),
-				'email' => $this->input->post('email'),
-				'address' => $this->input->post('address'),
-				'contact' => $this->input->post('contact'),
-				'dob' => $this->input->post('dob'),
-			);
-		$this->person->update(array('id' => $this->input->post('id')), $data);
-		$this->load->view('employee_view');
-	}
-
-	public function ajax_delete($id)
-	{
-		$this->person->delete_by_id($id);
-		echo json_encode(array("status" => TRUE));
-	}
+	
 
 }
